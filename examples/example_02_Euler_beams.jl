@@ -1,9 +1,6 @@
-
-using PyPlot, MAT
-;
+using PyPlot
 
 using AD4SM
-;
 
 mean(x) = sum(x)/length(x)
 
@@ -56,13 +53,14 @@ function makeHexaModels(;N1 = 5, N2=5, L0=1, dTol=1e-6)
 end
 ;
 
+println("making the model... ")
 @time (nodes, beams) = makeHexaModels(N1 = 21, N2 = 21, L0 = 1.2)
 
 nNodes   = length(nodes)
-t, w, Es = .1, .1, 5
+t, w, Es = .1, .1, 5.
 A        = t*w
-# elems    = [Elements.Beam(beam, nodes[beam], t, w, mat=Materials.Hooke(Es, 0.3)) for beam in beams]
-elems    = [Elements.Beam(beam, nodes[beam], t, w, mat=Materials.Hooke1D(Es)) for beam in beams]
+mat      = Materials.Hooke1D(Es, 0.3)
+elems    = [Elements.Beam(beam, nodes[beam], t, w, mat=mat) for beam in beams]
 ;
 
 minx = minimum([node[1] for node in nodes])
@@ -77,7 +75,8 @@ idtop = findall(abs.([node[2] for node in nodes].-maxy) .<1e-6)
 LY    = maxy-miny
 ;
 
-ax = getproperty(figure(),:add_subplot)(1,1,1)
+_,ax = PyPlot.subplots()
+
 for item in beams
     n1 = nodes[item[1]]
     n2 = nodes[item[2]]
@@ -106,11 +105,12 @@ unew[.!bfreeu] .= u[.!bfreeu]*1e-4
 fe    = zeros(length(unew))
 ;
 
-allus = Solvers.solve(elems, u, N=20, bprogress=false, bechoi=false, becho=true, ballus=true)
+println("solving the problem ...")
+@time allus = Solvers.solve(elems, u, N=20, bechoi=false, becho=true, ballus=true)
 ;
 
 unew = allus[end][1]
-ax   = getproperty(figure(),:add_subplot)(1,1,1)
+_,ax = PyPlot.subplots()
 
 for beam in beams
     n1, n2 = nodes[beam]
@@ -130,20 +130,14 @@ getproperty(ax, :set_aspect)("equal")
 title("deformed  model")
 ;
 
-idd = LinearIndices(u)[2,idtop]
+idd  = LinearIndices(u)[2,idtop]
 
-RY  = [sum(u[2][idd]) for u in allus];
-Δu  = [mean(u[1][idd]) for u in allus]
+RY   = [sum(u[2][idd]) for u in allus];
+Δu   = [mean(u[1][idd]) for u in allus]
 
-PyPlot.plot(Δu/LY, RY/Es/A)
+_,ax = PyPlot.subplots()
+
+ax.plot(Δu/LY, RY/Es/A)
+ax.set_xlabel("displacement, Δu/LY")
+ax.set_ylabel("reaction force, RY/Es/A")
 ;
-
-matwrite("HexaLattice.mat", Dict(
-  "Ry"     => RY,
-  "nodes"  => hcat(nodes[:]...)|> transpose |> collect, 
-  "beams"  => hcat(beams[:]...)|> transpose |> collect, 
-  "LY"     => LY,
-  "DeltaY" => Δu, 
-  "u"      => unew,
-  "Es"     => Float64(Es),
-  "A"      => A))

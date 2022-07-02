@@ -1,19 +1,6 @@
-#! /u1/vian294/julia/julia-1.1.0/bin/julia -p 8 
-#PBS -N jHexaG1e3p08
-#PBS -l select=1:ncpus=8
-#PBS -j oe
-#PBS -k oe
-
-# qsub /u1/vian294/METMAT/AutoDiff/rev_paper1/example_3DSpring_r1.jl
-
-using Printf, WriteVTK, AbaqusReader, JLD, Dates, LinearAlgebra
-# @everywhere cd("/u1/vian294/METMAT/AutoDiff/rev_paper1")
-@show pwd()
-
-# @everywhere using AD4SM
+using LinearAlgebra, Printf
+using AbaqusReader, Logging
 using AD4SM
-
-# @show Elements.setp(8)
 
 mean(x)   = sum(x)/length(x)
 
@@ -24,30 +11,23 @@ sVTKpath  = "./vtk_files/"
 bVTKall   = true
 Δz        = 250 
 sPosFix   = "_1e3w250"
+sFileName = splitext(sMeshFile)[1]*sPosFix
 N         = 300 
 LF        = vcat(range(0.0, 0.7, length=N÷3),
                  range(0.7, 1.0, length=2N÷3+1))
 nSteps    = length(LF)
 
-sFileName = splitext(sMeshFile)[1]*sPosFix
-mymodel   = AbaqusReader.abaqus_read_mesh(sMeshFile)
+mymodel   = with_logger(Logging.NullLogger()) do
+  AbaqusReader.abaqus_read_mesh(sMeshFile)
+end
 nodes     = [mymodel["nodes"][ii] for ii in 1:mymodel["nodes"].count]
 el_nodes  = [item[2]              for item in mymodel["elements"]] 
 id_b      = mymodel["node_sets"]["BTM"]
 id_t      = mymodel["node_sets"]["TOP"]
 n_t, n_b  = length(id_t), length(id_b)
 
-points    = hcat(nodes...)
-cells     = [if length(item)==4
-               MeshCell(VTKCellTypes.VTK_TETRA, item)
-             else 
-               MeshCell(VTKCellTypes.VTK_HEXAHEDRON, item)
-             end for item in el_nodes]
-elems     = [if length(item)==4
-               Elements.Tet04(item, nodes[item], mat=mat)
-             else 
-               Elements.Hex08(item, nodes[item], mat=mat)
-             end for item  in el_nodes]
+elems     = [Elements.Hex08(item, nodes[item], mat=mat)  for item in el_nodes]
+;
 
 @show nNodes, nElems   = length(nodes), length(elems)
 @printf("starting %s \n\n", sFileName) 
@@ -63,7 +43,7 @@ t0    = Base.time_ns()
 for (ii,LF) in enumerate(LF)
   global unew, λnew, fnew
   w0    = LF*Δz 
-  @printf("doing step %3i/%i, LF = %.4f, w0 = %.3f", 
+  @printf("doing step %3i/%i, LF = %.4f, w0 = %.3f \n", 
           ii, nSteps, LF, w0); flush(stdout)
 
   eqns  = [Solvers.ConstEq(x->sum(x),          idxes[1,id_t][:], adiff.D1),
@@ -84,7 +64,6 @@ for (ii,LF) in enumerate(LF)
                       dTolu     = 1e-4,
                       dTole     = 1e-3,
                       dNoise    = 1e-9,
-                      bprogress = false,
                       bpredict  = false,
                       becho     = true)
   if bfailed 
@@ -98,19 +77,20 @@ for (ii,LF) in enumerate(LF)
   end
   flush(stdout)
 end
-@printf("completed in %s\n",(Base.time_ns()-t0)÷1e9|>
-        Dates.Second|>Dates.CompoundPeriod|>Dates.canonicalize)
+@printf("completed in %i seconds\n",(Base.time_ns()-t0)÷1e9)
 flush(stdout)
 
 Δu_tot = [mean(item[1][3,id_b]) for item in allus]
 rf_tot = [item[3][3]            for item in allus]
 
+;
 
-JLD.save(sFileName*".jld", "nodes", nodes, "elems", elems, "allus", allus,
-         "points", points, "cells", cells, "LF", LF, "mat", mat, 
-         "Nsteps", length(LF), "id_b", id_b, "id_t", id_t, 
-         "rf_tot", rf_tot, "Δu_tot", Δu_tot, "sFileName", sFileName)
-@printf("results written to %s\n", sFileName)
+# these lines will produce vtu and pvd files for paraview
+#=
+using WriteVTK
+
+cells     = [MeshCell(VTKCellTypes.VTK_HEXAHEDRON, item) for item in el_nodes]
+points    = hcat(nodes...)
 
 paraview_collection(sVTKpath*sFileName) do pvd
   for (ii, item) in enumerate(allus)
@@ -141,3 +121,4 @@ paraview_collection(sVTKpath*sFileName) do pvd
   end
 end  
 
+=#

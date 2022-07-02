@@ -1,5 +1,6 @@
-using Printf, PyCall, PyPlot
-using AbaqusReader
+using LinearAlgebra
+using Printf, AbaqusReader, Logging
+using PyCall, PyPlot
 
 using AD4SM
 
@@ -93,10 +94,14 @@ N         = 200
 LF        = range(1/10N, 1, length=N)
 dTol      = 1e-6
 ballus    = true
+# sFileName = splitext(basename(sMeshFile))[1];
 ;
 
-sFileName = splitext(basename(sMeshFile))[1];
-mymodel   = AbaqusReader.abaqus_read_mesh(sMeshFile)
+mymodel   = with_logger(Logging.NullLogger()) do
+  AbaqusReader.abaqus_read_mesh(sMeshFile)
+end
+@printf("\n\t loaded %s \n", sMeshFile)
+
 nodes     = [mymodel["nodes"][ii] for ii in 1:mymodel["nodes"].count]
 el_nodes  = [item[2]              for item in mymodel["elements"]] 
 
@@ -122,6 +127,7 @@ idxu      = LinearIndices((2,nNodes))
 
 pos_btm   = hcat(nodes[sort_bnd(nodes, id_btm)]...)
 pos_top   = hcat(nodes[sort_bnd(nodes, id_top)]...)
+;
 
 plot_model(elems, nodes)
 PyPlot.plot(pos0[1,:], pos0[2,:], color=:b)        
@@ -143,6 +149,7 @@ u0[2,id_top] .= 0
 
 ;
 
+println("doing the 0-th step without volume constraint ... ");
 @time Solvers.solvestep!(elems, u0, u0, bifree, dTol=dTol)
 ;
 
@@ -150,15 +157,15 @@ u            = copy(u0)
 u[:,id_btm] .= 0
 u[2,id_top] .= -Δu
 
-allus_e = Solvers.solve(elems, u, ifree=bifree, LF=range(1/10N, 1, length=N),
+println("doing the case without volume constraint ... ")
+@time allus_e = Solvers.solve(elems, u, ifree=bifree, LF=range(1/10N, 1, length=N),
                      becho=true, bechoi=false, ballus=ballus,
                      dTolu=1e-6, dTole=1e-2, maxiter=15)
 ;
 
-cfig = PyPlot.figure()
+cfig, ax = PyPlot.subplots()
 
-ax1  = cfig.add_subplot(1,1,1)
-plot_model(elems, nodes, cfig=cfig, ax=ax1, 
+plot_model(elems, nodes, cfig=cfig, ax=ax, 
   u=allus_e[end][1], Φ=get_I3(elems, allus_e[end][1]).-1)
 ;
 
@@ -199,6 +206,7 @@ u0[:,id_btm]     .= 0
 u0[2,id_top]     .= 0
 ;
 
+println("doing the 0-th step with volume constraint ... ");
 @time Solvers.solvestep!(elems, u0, u0, bifree, λ=λ, dTolu=1e-5, dTole=1e-3, eqns=eqns)
 ;
 
@@ -206,38 +214,41 @@ u           = copy(u0)
 u[:,id_btm] .= 0
 u[2,id_top] .= -Δu
 
-allus_d = Solvers.solve(elems, u, ifree=bifree, λ=λ, eqns=eqns, LF=range(0, 1, length=200),
+
+println("doing the case with volume constraint ... ")
+@time allus_d = Solvers.solve(elems, u, ifree=bifree, λ=λ, eqns=eqns, LF=range(0, 1, length=200),
                      becho=true, bechoi=false, ballus=ballus, 
                      dTolu=1e-5, dTole=5e-2, maxiter=11)
 ;
 
-cfig = PyPlot.figure()
+cfig, ax = PyPlot.subplots()
 
-ax1  = cfig.add_subplot(1,1,1)
-plot_model(elems, nodes, cfig=cfig, ax=ax1, 
+plot_model(elems, nodes, cfig=cfig, ax=ax, 
   u=allus_d[end][1], Φ=get_I1(elems, allus_d[end][1]).-3)
 ;
 
-cfig = PyPlot.figure()
+cfig, ax = PyPlot.subplots(2,1)
 
-ax1  = cfig.add_subplot(2,1,1)
-plot_model(elems, nodes, cfig=cfig, ax=ax1, 
+
+plot_model(elems, nodes, cfig=cfig, ax=ax[1], 
   u=allus_d[end][1], Φ=get_I1(elems, allus_d[end][1]).-3)
-PyPlot.plot(pos0[1,:]+allus_d[end][1][1,id_srtd],
+ax[1].plot(pos0[1,:]+allus_d[end][1][1,id_srtd],
   pos0[2,:]+allus_d[end][1][2,id_srtd], color=:b)        
 
-ax2  = cfig.add_subplot(2,1,2)
-plot_model(elems, nodes, cfig=cfig, ax=ax2, 
+plot_model(elems, nodes, cfig=cfig, ax=ax[2], 
   u=allus_e[end][1], Φ=get_I1(elems, allus_e[end][1]).-3)
-PyPlot.plot(pos0[1,:]+allus_e[end][1][1,id_srtd],
-  pos0[2,:]+allus_e[end][1][2,id_srtd], color=:b)        
+ax[1].set_xlim([15, 85]); ax[1].set_ylim([-26, 10])
+ax[1].set_title("with internal volume constraint, \$I_1-3\$")
+ax[1].set_xticks([]); ax[1].set_yticks([])
 
-ax1.set_xlim([15, 85]); ax1.set_ylim([-26, 10])
-ax1.set_title("with internal volume constraint, \$I_1-3\$")
-ax1.set_xticks([]); ax1.set_yticks([])
-ax2.set_xlim([15, 85]); ax2.set_ylim([-26, 10])
-ax2.set_title("without internal volume constraint, \$I_1-3\$")
-ax2.set_xticks([]); ax2.set_yticks([])
+ax[2].plot(pos0[1,:]+allus_e[end][1][1,id_srtd],
+  pos0[2,:]+allus_e[end][1][2,id_srtd], color=:b)        
+ax[2].set_xlim([15, 85]); ax[2].set_ylim([-26, 10])
+ax[2].set_title("without internal volume constraint, \$I_1-3\$")
+ax[2].set_xticks([]); ax[2].set_yticks([])
+
+cfig.tight_layout(pad=2.0, w_pad=2.0, h_pad=2.0)
+
 
 rf_tot_d = [sum(item[2][2, id_top])  for item in allus_d]
 Δu_tot_d = [mean(item[1][2,id_top])  for item in allus_d]
@@ -245,10 +256,10 @@ rf_tot_d = [sum(item[2][2, id_top])  for item in allus_d]
 rf_tot_e = [sum(item[2][2, id_top])  for item in allus_e]
 Δu_tot_e = [mean(item[1][2,id_top])  for item in allus_e]
 
-PyPlot.figure()
-PyPlot.plot(Δu_tot_d/50, rf_tot_d/1e5, color=:r)
-PyPlot.plot(Δu_tot_e/50, rf_tot_e/1e5, color=:b)
-PyPlot.xlabel("\$\\Delta u_2/L_2\$")
-PyPlot.ylabel("\$F_2\\times10^{-5}\$")
-PyPlot.title("Total reaction force")
+cfig, ax = PyPlot.subplots()
+ax.plot(Δu_tot_d/50, rf_tot_d/1e5, color=:r)
+ax.plot(Δu_tot_e/50, rf_tot_e/1e5, color=:b)
+ax.set_xlabel("\$\\Delta u_2/L_2\$")
+ax.set_ylabel("\$F_2\\times10^{-5}\$")
+ax.set_title("Total reaction force")
 ;

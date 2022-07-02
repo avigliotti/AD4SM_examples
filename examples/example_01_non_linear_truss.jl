@@ -1,14 +1,8 @@
-
 using Printf, LinearAlgebra
-using BenchmarkTools #, Statistics
 using PyPlot, PyCall
-using MAT
 ;
 
 using AD4SM
-;
-
-mean(x) = sum(x)/length(x)
 
 function replicateRVE(nodes_RVE, beams_RVE, 
     a1, a2, a3, N1, N2, N3)
@@ -138,6 +132,8 @@ R[3,:] = [0, 0, 1]
 nodes_RVE  = [R*v - [√2/2, √2/2, -√2/2]L0 for v in nodes_RVE]
 ;
 
+mean(x) = sum(x)/length(x)
+
 a1 = [1, 0, 0]
 a2 = [0, 1, 0]
 a3 = [0, 0, 1]
@@ -165,17 +161,17 @@ idtop = findall(abs.([node[3] for node in nodes].-maxz) .<1e-6)
 ;
 
 A = .01
-# elems = [Elements.Rod(beam[:], nodes[beam[:],:], A, mat=Materials.Hooke(1, 0.3)) for beam in beams]
-elems = [Elements.Rod(beam[:], nodes[beam[:],:], A, mat=Materials.Hooke1D(1)) for beam in beams]
+elems = [Elements.Rod(beam[:], nodes[beam[:],:], A, mat=Materials.Hooke1D(1.0, 0.3)) 
+  for beam in beams]
 ;
 
-ax = mplot3d.Axes3D(figure(figsize=(2,8)))
+fig = PyPlot.figure()
+ax = mplot3d.Axes3D(fig)
 plot_model(elems, nodes,
   ax = ax, color = :r, alpha=0.25)
 title("undeformed  model")
 
-# ax.set_aspect(N3/N2)
-# getproperty(ax, :set_aspect)("equal")
+#ax.set_aspect(N3/N2)
 ;
 
 nNodes    = length(nodes)
@@ -193,7 +189,8 @@ eqns_btm = [Solvers.ConstEq(x-> [0, sin(-x[4]), cos(-x[4])]⋅(nodes[ii]+x[1:3])
 eqns = vcat(eqns_top, eqns_btm)
 ;
 
-Solvers.solvestep!(elems, copy(u0), u0, ifree, λ=λ, eqns=eqns, dTol=1e-6, becho=true)
+println("doing the 0-th step ...")
+@time Solvers.solvestep!(elems, copy(u0), u0, ifree, λ=λ, eqns=eqns, dTol=1e-6, becho=true)
 ;
 
 nNodes    = length(nodes)
@@ -262,7 +259,7 @@ idbtm = findall(abs.([node[3] for node in nodes_2].-minz) .<1e-6)
 idtop = findall(abs.([node[3] for node in nodes_2].-maxz) .<1e-6)
 
 A = .01
-elems_2 = [Elements.Rod(beam[:], nodes_2[beam[:],:], A, mat=Materials.Hooke(1, 0.3)) 
+elems_2 = [Elements.Rod(beam[:], nodes_2[beam[:],:], A, mat=Materials.Hooke1D(1.0, 0.3)) 
          for beam in beams_2]
 ;
 

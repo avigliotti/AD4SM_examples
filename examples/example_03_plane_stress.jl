@@ -96,7 +96,6 @@ sMeshFile = "Pattern2D03FinerMesh02j.inp"
 ϵn0       = 0.24
 bfside    = true
 mat       = Materials.NeoHooke(10.0)
-bprogress = false
 bwarmup   = true
 blheqs    = false
 bsheqs    = true
@@ -220,7 +219,10 @@ icnst     = .!ifree
 u0         = 1e-4Δx*randn(2, nNodes+nSHs+nLHs)
 u0[icnst] .= 0
 unew       = copy(u0)
+
+println("\t doing the 0-th tensile step ..."); flush(stdout)
 @time Solvers.solvestep!(elems, u0, unew, ifree, eqns=eqns, λ = zeros(length(eqns)), becho=true)
+
 u[ifree] .= unew[ifree]
 ;
 
@@ -228,7 +230,8 @@ N       = 24
 LF_c    = vcat(range(0.0, 0.9, length=2N÷8),
                range(0.9, 1.0, length=6N÷8))
 
-allus_c = Solvers.solve(elems, u, LF=LF_c, ifree=ifree, eqns=eqns, becho=true, bechoi=true)
+println("doing the compression branch ... ")
+@time allus_c = Solvers.solve(elems, u, LF=LF_c, ifree=ifree, eqns=eqns, becho=true, bechoi=true)
 ;
 
 rf_tot_c = [sum(item[2][2,nid_bndt])   for item in allus_c]
@@ -237,20 +240,18 @@ rf_tot_c = [sum(item[2][2,nid_bndt])   for item in allus_c]
 
 I1 = get_I1(elems, allus_c[end][1])
 
-cfig = figure()
-ax1   = cfig.add_subplot(2,1,1)
+cfig,ax = PyPlot.subplots(2,1)
 
 plot_model(elems, nodes, alpha=0.05, 
-  facecolor=:c, edgecolor=:c, cfig=cfig, ax=ax1)
+  facecolor=:c, edgecolor=:c, cfig=cfig, ax=ax[1])
 plot_model(elems, nodes, u = allus_c[end][1], 
-  edgecolor=:c, Φ = get_I1(elems, allus_c[end][1]), cfig=cfig, ax=ax1)
+    edgecolor=:c, Φ = get_I1(elems, allus_c[end][1]), cfig=cfig, ax=ax[1])
 title("deformed model - compression")
 
-ax2   = cfig.add_subplot(2,1,2)
-ax2.plot(Δu_tot_c, rf_tot_c)
-xlabel("Δu_tot_")
-ylabel("rf_tot_c")
-title("force-displacement, compressive branch")
+ax[2].plot(Δu_tot_c, rf_tot_c)
+ax[2].set_xlabel("Δu_tot_")
+ax[2].set_ylabel("rf_tot_c")
+ax[2].set_title("force-displacement, compressive branch")
 
 cfig.tight_layout(pad=2.0, w_pad=2.0, h_pad=2.0)
 ;
@@ -275,6 +276,7 @@ icnst     = .!ifree
 u0         = 1e-4Δx*randn(2, nNodes+nSHs+nLHs)
 u0[icnst] .= 0
 unew       = copy(u0)
+println("\t doing the 0-th tensile step ..."); flush(stdout)
 @time Solvers.solvestep!(elems, u0, unew, ifree, eqns=eqns, λ = zeros(length(eqns)), becho=true)
 u[ifree] .= unew[ifree]
 ;
@@ -282,8 +284,8 @@ u[ifree] .= unew[ifree]
 N       = 10
 LF_t    = vcat(range(0.0, 0.9, length=2N÷3),
                range(0.9, 1.0, length=N÷3+1))
-println("\n\t starting the tensile branch \n"); flush(stdout)
-allus_t = Solvers.solve(elems, u, LF=LF_t, ifree=ifree, eqns=eqns,
+println("\t doing the tensile branch ..."); flush(stdout)
+@time allus_t = Solvers.solve(elems, u, LF=LF_t, ifree=ifree, eqns=eqns,
                           becho=true, bechoi=true)
 ;
 
@@ -291,19 +293,17 @@ rf_tot_t = [sum(item[2][2,nid_bndt])   for item in allus_t]
 Δu_tot_t = [mean(item[1][2,nid_bndt])  for item in allus_t]
 ;
 
-I1    = get_I1(elems, allus_t[end][1])
+I1     = get_I1(elems, allus_t[end][1])
 
-cfig  = figure()
-ax1   = cfig.add_subplot(2,1,1)
+cfig,ax = PyPlot.subplots(2,1)
 
 plot_model(elems, nodes, alpha=0.05, 
-  facecolor=:c, edgecolor=:c, cfig=cfig, ax=ax1)
+      facecolor=:c, edgecolor=:c, cfig=cfig, ax=ax[1])
 plot_model(elems, nodes, u = allus_t[end][1], 
-  edgecolor=:c, Φ = get_I1(elems, allus_t[end][1]), cfig=cfig, ax=ax1)
+        edgecolor=:c, Φ = get_I1(elems, allus_t[end][1]), cfig=cfig, ax=ax[1])
 title("deformed model - tensile")
 
-ax2   = cfig.add_subplot(2,1,2)
-ax2.plot(Δu_tot_t, rf_tot_t)
+ax[2].plot(Δu_tot_t, rf_tot_t)
 xlabel("Δu_tot")
 ylabel("rf_tot")
 title("force-displacement, tensile branch")
@@ -311,11 +311,10 @@ title("force-displacement, tensile branch")
 cfig.tight_layout(pad=2.0, w_pad=2.0, h_pad=2.0)
 ;
 
-PyPlot.figure()
-PyPlot.plot(Δu_tot_c, rf_tot_c, Δu_tot_t, rf_tot_t)
-PyPlot.xlabel("Δu_tot_")
-PyPlot.ylabel("rf_tot_c")
-PyPlot.title("force-displacement, total")
+cfig,ax = PyPlot.subplots()
+
+ax.plot(Δu_tot_c, rf_tot_c, Δu_tot_t, rf_tot_t)
+ax.set_xlabel("displacement, u")
+ax.set_ylabel("reaction force, rf")
+ax.set_title("force-displacement, total")
 ;
-
-
