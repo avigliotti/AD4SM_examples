@@ -1,6 +1,5 @@
-
 using Printf, PyCall, PyPlot
-using AbaqusReader, JLD, MAT
+using AbaqusReader
 
 using AD4SM
 
@@ -26,10 +25,6 @@ function sort_bnd(nodes, nid_bnd)
   return id_srtd
 end
 
-# get_vol(p0) = π/2*sum((p0[2,1:end-1]+p0[2,2:end]) .* 
-#                      (p0[1,2:end]-p0[1,1:end-1]) .* 
-#                      (p0[1,2:end]+p0[1,1:end-1]) )
-#
 # get_vol calculates the volume of the cavity
 get_vol(p0) = π/2*sum(
   (p0[2:2:end-2]+p0[4:2:end]) .* 
@@ -113,14 +108,7 @@ id_btm   = mymodel["node_sets"]["BTM"]
 id_top   = mymodel["node_sets"]["TOP"]
 id_bnd   = mymodel["node_sets"]["BND"]
 
-elems     = []
-for item ∈ el_nodes
-  if length(item)==3
-    push!(elems, Elements.ASTria(item, nodes[item], mat=mat))
-  elseif length(item)==4
-    push!(elems, Elements.ASQuad(item, nodes[item], mat=mat))
-  end
-end    
+elems     = [Elements.ASQuad(item, nodes[item], mat=mat) for item ∈ el_nodes]
 
 @show (nNodes, nElems) = (length(nodes), length(elems)); flush(stdout)
 
@@ -155,8 +143,7 @@ u0[2,id_top] .= 0
 
 ;
 
-@time Solvers.solvestep!(elems, u0, bifree, 
-  bprogress=true, becho=false, dTol=dTol)
+@time Solvers.solvestep!(elems, u0, u0, bifree, dTol=dTol)
 ;
 
 u            = copy(u0)
@@ -164,7 +151,7 @@ u[:,id_btm] .= 0
 u[2,id_top] .= -Δu
 
 allus_e = Solvers.solve(elems, u, ifree=bifree, LF=range(1/10N, 1, length=N),
-                     becho=true, bechoi=false, ballus=ballus, bprogress=false,
+                     becho=true, bechoi=false, ballus=ballus,
                      dTolu=1e-6, dTole=1e-2, maxiter=15)
 ;
 
@@ -212,9 +199,7 @@ u0[:,id_btm]     .= 0
 u0[2,id_top]     .= 0
 ;
 
-@time Solvers.solvestep!(elems, 
-        u0, bifree, λ=λ, bprogress=true, becho=false, 
-        dTolu=1e-5, dTole=1e-3, eqns=eqns)
+@time Solvers.solvestep!(elems, u0, u0, bifree, λ=λ, dTolu=1e-5, dTole=1e-3, eqns=eqns)
 ;
 
 u           = copy(u0)
@@ -222,7 +207,7 @@ u[:,id_btm] .= 0
 u[2,id_top] .= -Δu
 
 allus_d = Solvers.solve(elems, u, ifree=bifree, λ=λ, eqns=eqns, LF=range(0, 1, length=200),
-                     becho=true, bechoi=false, ballus=ballus, bprogress=false,
+                     becho=true, bechoi=false, ballus=ballus, 
                      dTolu=1e-5, dTole=5e-2, maxiter=11)
 ;
 
@@ -266,24 +251,4 @@ PyPlot.plot(Δu_tot_e/50, rf_tot_e/1e5, color=:b)
 PyPlot.xlabel("\$\\Delta u_2/L_2\$")
 PyPlot.ylabel("\$F_2\\times10^{-5}\$")
 PyPlot.title("Total reaction force")
-;
-
-JLD.save(sFileName*".jld", Dict(
-            "nodes"=>nodes, "elems"=>elems, "el_nodes"=>el_nodes,
-            "allus_d"=>allus_d, "allus_e"=>allus_e,
-            "LF"=>LF, "mat"=>mat,
-            "id_btm"=>id_btm, "id_top"=>id_top, "id_bnd"=>id_bnd, 
-            "sMeshFile"=>sMeshFile))
-@printf("results written to %s.jld\n", sFileName); flush(stdout)
-;
-
-MAT.matwrite(sFileName*".mat", Dict(
-        "nodes"=>nodes, "elems"=>el_nodes, "nNodes"=>nNodes,
-        "u0_d"=>allus_d[end][1], "u0_e"=>allus_e[end][1],
-        "I1_d"=>get_I1(elems, allus_d[end][1]),
-        "I1_e"=>get_I1(elems, allus_e[end][1]),
-        "id_btm"=>id_btm, "id_top"=>id_top, "id_bnd"=>id_bnd, 
-        "u_tot_d"=>Δu_tot_d, "u_tot_e"=>Δu_tot_e,
-        "rf_tot_d"=>rf_tot_d, "rf_tot_e"=>rf_tot_e))
-@printf("results written to %s.mat\n", sFileName); flush(stdout)
 ;
