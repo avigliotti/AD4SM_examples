@@ -13,4 +13,4 @@ The example folder contains the following examples:
 1. [Euler beam lattice under large displacements](https://github.com/avigliotti/AD4SM_examples/blob/master/examples/example_02_Euler_beams.ipynb)
 1. [Plane stress with rigid inclusions](https://github.com/avigliotti/AD4SM_examples/blob/master/examples/example_03_plane_stress.ipynb)
 1. [Axi-symmetric problem with internal volume constraint](https://github.com/avigliotti/AD4SM_examples/blob/master/examples/example_04_AxSymDomain.ipynb)
-1. 3D non linear spring
+1. [3D non linear spring](https://github.com/avigliotti/AD4SM_examples/blob/master/examples/example_05_3DSpring.ipynb)
