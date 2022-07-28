@@ -16,4 +16,4 @@ The example folder contains the following examples:
 1. [3D non linear spring](https://github.com/avigliotti/AD4SM_examples/blob/master/examples/example_05_3DSpring.ipynb)
 
 ## Juliacon2022
-[here](https://github.com/avigliotti/AD4SM_examples/blob/main/juliacon2022/Juliacon2022_AD4SM_in_Julia.ipynb) are the slides of my presentation at Juliacon2022
+[Here](https://github.com/avigliotti/AD4SM_examples/blob/main/juliacon2022/Juliacon2022_AD4SM_in_Julia.ipynb) are the slides of my presentation at Juliacon2022
