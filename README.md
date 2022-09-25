@@ -1,6 +1,6 @@
 # AD4SM_examples
 
-This repository contains examples and other resources that deal with [AD4SM.jl](https://github.com/avigliotti/AD4SM.jl).
+This repository contains examples and other resources that run with [AD4SM.jl](https://github.com/avigliotti/AD4SM.jl).
 
 ## Tutorial
 [Here](https://github.com/avigliotti/AD4SM_examples/blob/master/AD4SM_talk.pdf) are the slides of a presentantion on the rationale of automatic differentiation and the advantages of its use for solid mechanics.
