@@ -77,7 +77,7 @@ function plot_model(elems::Array{T} where T,
 end
 
 function write_scad_file(sFileName, nodes, beams)
-# write_scad_file is a helper function that produce a text file 
+# write_scad_file is a helper function that produces a text file 
 # with the coordinates, the nodes and the conectivity suitable 
 # for drawing the model with openscad.
 # The script polyhedron_hedges.scad is needed to produce the drawings
